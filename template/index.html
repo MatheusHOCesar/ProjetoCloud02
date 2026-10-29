@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Runner - Painel de Controle</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        pre#logContent {
+            background: #1e1e1e;
+            color: #00ff66;
+            padding: 15px;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <header class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <h2 class="h3 mb-0">☁️ Cloud Runner</h2>
+            <small class="text-muted">Gerenciador de Execução Isolada (Namespaces & Cgroups)</small>
+        </div>
+        <a href="/" class="btn btn-outline-primary btn-sm">🔄 Atualizar Painel</a>
+    </header>
+
+    <div class="row g-4">
+        <!-- Formulário de Deploy -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white fw-bold">
+                    Novo Ambiente
+                </div>
+                <div class="card-body">
+                    <form action="/deploy" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nome do Ambiente</label>
+                            <input type="text" name="env_name" class="form-control" placeholder="ex: worker-01" required>
+                        </div>
+
+                        <h6 class="fw-bold text-secondary mt-3">Limites de Recursos</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <label class="form-label small">CPU (%)</label>
+                                <input type="number" name="cpu_limit" class="form-control" value="50" min="5" max="100" required>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">RAM (MB)</label>
+                                <input type="number" name="mem_limit" class="form-control" value="128" min="16" max="2048" required>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label small">I/O (MB/s)</label>
+                                <input type="number" name="io_limit" class="form-control" value="10" min="1" max="500" required>
+                            </div>
+                        </div>
+
+                        <h6 class="fw-bold text-secondary mt-3">Script / Programa</h6>
+                        <div class="mb-3">
+                            <select name="script_source" id="scriptSource" class="form-select" onchange="toggleScriptSource()">
+                                <option value="inline">Digitar script agora</option>
+                                <option value="upload">Upload de arquivo (.sh)</option>
+                                {% if scripts %}
+                                <option value="existing">Reutilizar script salvo ({{ scripts|length }})</option>
+                                {% endif %}
+                            </select>
+                        </div>
+
+                        <div id="inlineBox" class="mb-3">
+                            <input type="text" name="inline_name" class="form-control form-control-sm mb-2" placeholder="Nome do arquivo (ex: teste.sh)" value="servico.sh">
+                            <textarea name="inline_code" class="form-control font-monospace" rows="5">#!/bin/bash
+echo "Processo isolado iniciado!"
+echo "PID interno: $$"
+for i in {1..20}; do
+    echo "Ciclo $i executado..."
+    sleep 2
+done
+echo "Finalizado com sucesso."</textarea>
+                        </div>
+
+                        <div id="uploadBox" class="mb-3" style="display:none;">
+                            <input type="file" name="script_file" class="form-control">
+                        </div>
+
+                        <div id="existingBox" class="mb-3" style="display:none;">
+                            <select name="existing_script_id" class="form-select">
+                                {% for s in scripts %}
+                                <option value="{{ s.id }}">#{{ s.id }} - {{ s.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">
+                            🚀 Criar e Executar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Ambientes -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white fw-bold border-bottom">
+                    Ambientes Ativos e Histórico
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID / Nome</th>
+                                    <th>Script</th>
+                                    <th>Limites</th>
+                                    <th>PID</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for env in environments %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ env.id }} {{ env.env_name }}</strong>
+                                    </td>
+                                    <td><span class="badge bg-secondary">{{ env.script_name }}</span></td>
+                                    <td>
+                                        <small class="text-muted">
+                                            CPU: {{ env.cpu_limit }}% | RAM: {{ env.mem_limit }}MB | IO: {{ env.io_limit }}MB/s
+                                        </small>
+                                    </td>
+                                    <td><code>{{ env.pid or '-' }}</code></td>
+                                    <td>
+                                        {% if env.status == 'Em execução' %}
+                                            <span class="badge bg-primary">Em execução</span>
+                                        {% elif env.status == 'Terminado' %}
+                                            <span class="badge bg-success">Terminado</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Erro</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-dark" onclick="openLogs({{ env.id }}, '{{ env.env_name }}')">
+                                            Logs
+                                        </button>
+                                        {% if env.status == 'Em execução' %}
+                                        <form action="/stop/{{ env.id }}" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-warning">Parar</button>
+                                        </form>
+                                        {% endif %}
+                                        <form action="/delete/{{ env.id }}" method="POST" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        Nenhum ambiente registrado até o momento.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Logs -->
+<div class="modal fade" id="logModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="logModalTitle">Output do Processo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="logContent">Carregando...</pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="refreshLog()">Atualizar</button>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let activeEnvId = null;
+    const modalInstance = new bootstrap.Modal(document.getElementById('logModal'));
+
+    function toggleScriptSource() {
+        const val = document.getElementById('scriptSource').value;
+        document.getElementById('inlineBox').style.display = (val === 'inline') ? 'block' : 'none';
+        document.getElementById('uploadBox').style.display = (val === 'upload') ? 'block' : 'none';
+        document.getElementById('existingBox').style.display = (val === 'existing') ? 'block' : 'none';
+    }
+
+    function openLogs(id, name) {
+        activeEnvId = id;
+        document.getElementById('logModalTitle').innerText = `Logs — #${id} (${name})`;
+        refreshLog();
+        modalInstance.show();
+    }
+
+    function refreshLog() {
+        if (!activeEnvId) return;
+        fetch(`/logs/${activeEnvId}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('logContent').innerText = data.output;
+            });
+    }
+</script>
+</body>
+</html>
