@@ -99,3 +99,79 @@ def start_environment(env_id, script_path, cpu_percent, mem_mb, io_mbps):
 
     return proc.pid, cgroup_path, log_path
 
+def check_environment_status(env_id, pid, current_status):
+    """
+    Verifica em tempo real se o ambiente ainda está rodando, se terminou com sucesso
+    ou se parou por erro.
+    """
+    if current_status == "Terminado (Removido)":
+        return current_status
+
+    if not pid:
+        return "Erro"
+
+    exit_file = os.path.join(LOGS_DIR, f"env_{env_id}.exit")
+
+    # Verifica se o processo existe no sistema e não é um processo zumbi (Z)
+    proc_stat_path = f"/proc/{pid}/stat"
+    is_alive = False
+    if os.path.exists(proc_stat_path):
+        try:
+            with open(proc_stat_path, "r") as f:
+                stat_content = f.read()
+                # O estado fica logo após o nome do executável entre parênteses: "pid (comm) STATE ..."
+                state = stat_content.split(")")[1].split()[0]
+                if state != 'Z':
+                    is_alive = True
+        except Exception:
+            is_alive = False
+
+    if is_alive:
+        return "Em execução"
+
+    # Se não está mais vivo, checa o código de saída deixado pelo wrapper
+    if os.path.exists(exit_file):
+        try:
+            with open(exit_file, "r") as f:
+                code = int(f.read().strip())
+            return "Terminado" if code == 0 else "Erro"
+        except Exception:
+            return "Erro"
+
+    return "Terminado"
+
+def stop_and_cleanup_environment(env_id, pid, cgroup_path):
+    """
+    Encerra todos os processos dentro do Cgroup/Namespace e remove o Cgroup do sistema.
+    """
+    # 1. Mata todos os processos registrados dentro do cgroup
+    if cgroup_path and os.path.exists(cgroup_path):
+        procs_file = os.path.join(cgroup_path, "cgroup.procs")
+        if os.path.exists(procs_file):
+            try:
+                with open(procs_file, "r") as f:
+                    pids = [int(p.strip()) for p in f.readlines() if p.strip()]
+                for p in pids:
+                    try:
+                        os.kill(p, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            except Exception:
+                pass
+
+    # 2. Garante a morte do grupo de processos principal
+    if pid:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except Exception:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+
+    # 3. Remove o diretório do Cgroup (No cgroupfs usa-se rmdir)
+    if cgroup_path and os.path.exists(cgroup_path):
+        try:
+            os.rmdir(cgroup_path)
+        except Exception:
+            pass
