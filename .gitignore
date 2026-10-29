@@ -1,0 +1,9 @@
+.vagrant/
+__pycache__/
+*.py[cod]
+storage/scripts/*
+!storage/scripts/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+*.zip
+*.log
