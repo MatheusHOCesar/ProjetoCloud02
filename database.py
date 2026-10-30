@@ -1,6 +1,5 @@
 import mysql.connector
 
-# Configuracoes de conexao com o banco criado no provision.sh
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'clouduser',
@@ -9,18 +8,15 @@ DB_CONFIG = {
 }
 
 def get_connection():
-    """Abre e retorna uma conexao com o MySQL."""
+    """Abre e retorna uma conexao com o banco MySQL."""
     return mysql.connector.connect(**DB_CONFIG)
 
 def init_db():
-    """
-    Cria as tabelas necessarias caso ainda nao existam no banco.
-    Chamado automaticamente na inicializacao do servidor web.
-    """
+    """Cria as tabelas necessarias caso ainda nao existam no banco."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    # 1. Tabela para atender ao requisito de reuso de scripts enviados
+    # Tabela para permitir armazenamento e reuso de scripts
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scripts (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -30,7 +26,7 @@ def init_db():
         )
     """)
     
-    # 2. Tabela para rastrear cada ambiente criado (limites, processo e logs)
+    # Tabela para historico e controle de cada ambiente executado
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS environments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -51,10 +47,10 @@ def init_db():
     cursor.close()
     conn.close()
 
-# --- OPERACOES DE SCRIPTS (Armazenamento e Reuso) ---
+# --- METODOS DE MANIPULACAO DE SCRIPTS ---
 
 def save_script(name, filepath):
-    """Salva os metadados de um script enviado para permitir reutilizacao futura."""
+    """Salva os metadados de um script para permitir reutilizacao futura."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -68,7 +64,7 @@ def save_script(name, filepath):
     return script_id
 
 def list_scripts():
-    """Lista todos os scripts salvos no banco para exibir no seletor da interface."""
+    """Lista todos os scripts registrados no banco para o seletor da UI."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM scripts ORDER BY created_at DESC")
@@ -78,7 +74,7 @@ def list_scripts():
     return rows
 
 def get_script(script_id):
-    """Busca um script especifico pelo ID para execucao."""
+    """Recupera as informacoes de um script especifico por ID."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM scripts WHERE id = %s", (script_id,))
@@ -87,10 +83,10 @@ def get_script(script_id):
     conn.close()
     return row
 
-# --- OPERACOES DE AMBIENTES (Namespaces / Cgroups) ---
+# --- METODOS DE MANIPULACAO DE AMBIENTES ---
 
 def create_environment(env_name, script_id, cpu_limit, mem_limit, io_limit):
-    """Registra um novo ambiente no banco antes do disparo no Linux."""
+    """Registra a criacao do ambiente antes de invocar o engine do kernel."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -104,7 +100,7 @@ def create_environment(env_name, script_id, cpu_limit, mem_limit, io_limit):
     return env_id
 
 def update_environment_execution(env_id, pid, cgroup_path, log_path, status):
-    """Atualiza o ambiente com os dados reais do SO (PID, caminho do cgroup e log)."""
+    """Salva o PID, os caminhos do cgroup e log associados a execucao."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -117,7 +113,7 @@ def update_environment_execution(env_id, pid, cgroup_path, log_path, status):
     conn.close()
 
 def update_status(env_id, status):
-    """Atualiza o estado do ciclo de vida: 'Em execucao', 'Terminado' ou 'Erro'."""
+    """Atualiza o status do ambiente ('Em execucao', 'Terminado' ou 'Erro')."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -129,7 +125,7 @@ def update_status(env_id, status):
     conn.close()
 
 def list_environments():
-    """Retorna todos os ambientes criados e junta com o nome do script executado."""
+    """Retorna os ambientes com os dados do script executado via JOIN."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
@@ -144,7 +140,7 @@ def list_environments():
     return rows
 
 def get_environment(env_id):
-    """Obtem informacoes detalhadas de um unico ambiente (para consulta de logs)."""
+    """Retorna um ambiente por ID para consulta do caminho do log."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM environments WHERE id = %s", (env_id,))
@@ -154,7 +150,7 @@ def get_environment(env_id):
     return row
 
 def delete_environment_record(env_id):
-    """Remove o registro do ambiente do banco de dados."""
+    """Remove o registro do ambiente da base de dados."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM environments WHERE id = %s", (env_id,))
