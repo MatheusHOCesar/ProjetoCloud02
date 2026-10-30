@@ -19,6 +19,30 @@ CREATE DATABASE IF NOT EXISTS cloud_runner;
 CREATE USER IF NOT EXISTS 'clouduser'@'localhost' IDENTIFIED BY 'cloudpass';
 GRANT ALL PRIVILEGES ON cloud_runner.* TO 'clouduser'@'localhost';
 FLUSH PRIVILEGES;
+
+USE cloud_runner;
+
+CREATE TABLE IF NOT EXISTS scripts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    filepath VARCHAR(512) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS environments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    env_name VARCHAR(255) NOT NULL,
+    script_id INT NOT NULL,
+    cpu_limit INT NOT NULL,
+    mem_limit INT NOT NULL,
+    io_limit INT NOT NULL,
+    pid INT,
+    cgroup_path VARCHAR(512),
+    log_path VARCHAR(512),
+    status VARCHAR(50) DEFAULT 'Em execução',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (script_id) REFERENCES scripts(id)
+);
 EOF
 
 echo ">>> Habilitando delegação de Cgroups v2 na raiz..."

@@ -29,5 +29,6 @@ Vagrant.configure("2") do |config|
   SHELL
 
   # 2. BLOCO SCRIPT: Chama o arquivo provision.sh para configurar BD e Python
-  config.vm.provision "shell", path: "provision.sh"
+  # 2. BLOCO SCRIPT: Executa o provision.sh que acabou de ser clonado do GitHub lá dentro da VM
+config.vm.provision "shell", inline: "bash /opt/cloud-runner/provision.sh"
 end
