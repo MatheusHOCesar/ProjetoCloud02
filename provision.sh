@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-# Configurações do projeto
-REPO_URL="https://github.com/MatheusHOCesar/ProjetoCloud02"
 APP_DIR="/opt/cloud-runner"
 
-echo ">>> [1/6] Atualizando pacotes e instalando dependencias do sistema..."
+echo ">>> [2/2] (provision.sh) Instalando dependencias e configurando serviços..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y git python3 python3-pip mysql-server util-linux
+apt-get install -y python3 python3-pip mysql-server util-linux
 
-echo ">>> [2/6] Instalando dependencias Python..."
+echo ">>> Instalando bibliotecas Python (Flask e MySQL)..."
 pip3 install flask mysql-connector-python
 
-echo ">>> [3/6] Configurando banco de dados MySQL..."
+echo ">>> Configurando Banco de Dados MySQL..."
 systemctl start mysql
 systemctl enable mysql
 
@@ -24,41 +21,20 @@ GRANT ALL PRIVILEGES ON cloud_runner.* TO 'clouduser'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-echo ">>> [4/6] Habilitando controladores de Cgroups v2 (CPU, Memoria e IO)..."
-# Libera controladores na arvore raiz para permitir criacao de subgrupos com limites
+echo ">>> Habilitando delegação de Cgroups v2 na raiz..."
 echo "+cpu +memory +io" > /sys/fs/cgroup/cgroup.subtree_control || true
 
-echo ">>> [5/6] Obtendo codigo da aplicacao..."
-if [ -d "$APP_DIR" ]; then
-    rm -rf "$APP_DIR"
-fi
-
-# Tenta clonar do GitHub remoto; se falhar (ex: repo privado ou offline), usa os arquivos da pasta /vagrant
-if git clone "$REPO_URL" "$APP_DIR" 2>/dev/null; then
-    echo "Codigo clonado do GitHub com sucesso!"
-else
-    echo "Aviso: Nao foi possivel clonar do GitHub. Sincronizando arquivos locais de /vagrant..."
-    cp -r /vagrant "$APP_DIR"
-fi
-
-# Garante a existencia das pastas de persistencia local
-mkdir -p "$APP_DIR/storage/scripts" "$APP_DIR/storage/logs"
-chmod -R 755 "$APP_DIR/storage"
-
-echo ">>> [6/6] Criando e iniciando servico Systemd (cloud-runner)..."
+echo ">>> Criando serviço Systemd para rodar a aplicação em background..."
 cat <<EOF > /etc/systemd/system/cloud-runner.service
 [Unit]
-Description=Cloud Runner - Gerenciador de Namespaces e Cgroups
+Description=Cloud Runner Web Service
 After=network.target mysql.service
-Requires=mysql.service
 
 [Service]
-Type=simple
 User=root
 WorkingDirectory=$APP_DIR
 ExecStart=/usr/bin/python3 $APP_DIR/app.py
 Restart=always
-RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
@@ -68,8 +44,4 @@ systemctl daemon-reload
 systemctl enable cloud-runner
 systemctl restart cloud-runner
 
-echo "================================================================="
-echo " Provisionamento finalizado!"
-echo " Servico ativo em background via systemd."
-echo " Acesse: http://localhost:8080"
-echo "================================================================="
+echo ">>> Setup finalizado! Acesse http://localhost:8080"

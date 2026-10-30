@@ -8,15 +8,11 @@ DB_CONFIG = {
 }
 
 def get_connection():
-    """Abre e retorna uma conexao com o banco MySQL."""
     return mysql.connector.connect(**DB_CONFIG)
 
 def init_db():
-    """Cria as tabelas necessarias caso ainda nao existam no banco."""
     conn = get_connection()
     cursor = conn.cursor()
-    
-    # Tabela para permitir armazenamento e reuso de scripts
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scripts (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -25,8 +21,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
-    # Tabela para historico e controle de cada ambiente executado
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS environments (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -38,7 +32,7 @@ def init_db():
             pid INT,
             cgroup_path VARCHAR(512),
             log_path VARCHAR(512),
-            status VARCHAR(50) DEFAULT 'Em execucao',
+            status VARCHAR(50) DEFAULT 'Em execução',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (script_id) REFERENCES scripts(id)
         )
@@ -47,16 +41,10 @@ def init_db():
     cursor.close()
     conn.close()
 
-# --- METODOS DE MANIPULACAO DE SCRIPTS ---
-
 def save_script(name, filepath):
-    """Salva os metadados de um script para permitir reutilizacao futura."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO scripts (name, filepath) VALUES (%s, %s)",
-        (name, filepath)
-    )
+    cursor.execute("INSERT INTO scripts (name, filepath) VALUES (%s, %s)", (name, filepath))
     script_id = cursor.lastrowid
     conn.commit()
     cursor.close()
@@ -64,7 +52,6 @@ def save_script(name, filepath):
     return script_id
 
 def list_scripts():
-    """Lista todos os scripts registrados no banco para o seletor da UI."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM scripts ORDER BY created_at DESC")
@@ -74,7 +61,6 @@ def list_scripts():
     return rows
 
 def get_script(script_id):
-    """Recupera as informacoes de um script especifico por ID."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM scripts WHERE id = %s", (script_id,))
@@ -83,10 +69,7 @@ def get_script(script_id):
     conn.close()
     return row
 
-# --- METODOS DE MANIPULACAO DE AMBIENTES ---
-
 def create_environment(env_name, script_id, cpu_limit, mem_limit, io_limit):
-    """Registra a criacao do ambiente antes de invocar o engine do kernel."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -100,7 +83,6 @@ def create_environment(env_name, script_id, cpu_limit, mem_limit, io_limit):
     return env_id
 
 def update_environment_execution(env_id, pid, cgroup_path, log_path, status):
-    """Salva o PID, os caminhos do cgroup e log associados a execucao."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -113,19 +95,14 @@ def update_environment_execution(env_id, pid, cgroup_path, log_path, status):
     conn.close()
 
 def update_status(env_id, status):
-    """Atualiza o status do ambiente ('Em execucao', 'Terminado' ou 'Erro')."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE environments SET status = %s WHERE id = %s",
-        (status, env_id)
-    )
+    cursor.execute("UPDATE environments SET status = %s WHERE id = %s", (status, env_id))
     conn.commit()
     cursor.close()
     conn.close()
 
 def list_environments():
-    """Retorna os ambientes com os dados do script executado via JOIN."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
@@ -140,7 +117,6 @@ def list_environments():
     return rows
 
 def get_environment(env_id):
-    """Retorna um ambiente por ID para consulta do caminho do log."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM environments WHERE id = %s", (env_id,))
@@ -150,7 +126,6 @@ def get_environment(env_id):
     return row
 
 def delete_environment_record(env_id):
-    """Remove o registro do ambiente da base de dados."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM environments WHERE id = %s", (env_id,))
