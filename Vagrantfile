@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
     fi
 
     # TROQUE ESTA URL PELA URL REAL DO GITHUB DE VOCES:
-    git clone https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git $APP_DIR
+    git clone https://github.com/MatheusHOCesar/ProjetoCloud02.git $APP_DIR
 
     # Garante que as pastas de armazenamento existam dentro da VM
     mkdir -p $APP_DIR/storage/scripts $APP_DIR/storage/logs
