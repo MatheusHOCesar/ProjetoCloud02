@@ -16,7 +16,7 @@ def _get_root_disk_maj_min():
         for line in out.strip().split("\n"):
             parts = line.split()
             if len(parts) == 2 and parts[1] == "/":
-                # Em partições (ex: 8:1), o Cgroup v2 exige o dispositivo pai (ex: 8:0)
+                # Em partições, o Cgroup v2 exige o dispositivo pai
                 maj = parts[0].split(":")[0]
                 return f"{maj}:0"
     except Exception:

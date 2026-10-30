@@ -7,8 +7,7 @@ Vagrant.configure("2") do |config|
     vb.memory = "4096"
     vb.cpus = 1
   end
-
-  # 1. BLOCO INLINE: Instala o Git e clona o repositório direto pelo Vagrantfile
+  
   config.vm.provision "shell", inline: <<-SHELL
     echo ">>> [1/2] (Vagrantfile) Preparando o ambiente e clonando o repositorio..."
     export DEBIAN_FRONTEND=noninteractive
@@ -20,7 +19,6 @@ Vagrant.configure("2") do |config|
         rm -rf "$APP_DIR"
     fi
 
-    # TROQUE ESTA URL PELA URL REAL DO GITHUB DE VOCES:
     git clone https://github.com/MatheusHOCesar/ProjetoCloud02.git $APP_DIR
 
     # Garante que as pastas de armazenamento existam dentro da VM
@@ -28,7 +26,7 @@ Vagrant.configure("2") do |config|
     chmod -R 777 $APP_DIR/storage
   SHELL
 
-  # 2. BLOCO SCRIPT: Chama o arquivo provision.sh para configurar BD e Python
-  # 2. BLOCO SCRIPT: Executa o provision.sh que acabou de ser clonado do GitHub lá dentro da VM
+  # Chama o arquivo provision.sh para configurar BD e Python
+  # Executa o provision.sh que acabou de ser clonado do GitHub lá dentro da VM
 config.vm.provision "shell", inline: "bash /opt/cloud-runner/provision.sh"
 end
